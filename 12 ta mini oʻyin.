@@ -1,0 +1,555 @@
+
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+const games = [
+  ["clicker", "🪙", "Coin Clicker"],
+  ["reaction", "⚡", "Tezlik sinovi"],
+  ["guess", "🔢", "Sonni top"],
+  ["rps", "✊", "Tosh-qaychi-qog‘oz"],
+  ["xo", "❌", "X-O"],
+  ["memory", "🃏", "Memory"],
+  ["2048", "🔢", "2048"],
+  ["whack", "🐹", "Mole Catch"],
+  ["snake", "🐍", "Snake"],
+  ["dino", "🦖", "Dino Jump"],
+  ["dodge", "🚀", "Meteor Dodge"],
+  ["pong", "🏓", "Mini Pong"]
+];
+
+let current = "";
+let timer = null;
+let cleanup = () => {};
+let score = 0;
+let data = {};
+
+const arena = $("arena");
+const controls = $("controls");
+
+function status(message) {
+  $("status").textContent = message;
+}
+
+function button(text, fn, parent = controls) {
+  const b = document.createElement("button");
+  b.textContent = text;
+  b.addEventListener("click", fn);
+  parent.appendChild(b);
+  return b;
+}
+
+function element(tag, text, parent = arena, cls = "") {
+  const el = document.createElement(tag);
+  el.textContent = text;
+  if (cls) el.className = cls;
+  parent.appendChild(el);
+  return el;
+}
+
+function interval(fn, ms) {
+  clearInterval(timer);
+  timer = setInterval(fn, ms);
+}
+
+function clearGame() {
+  clearInterval(timer);
+  timer = null;
+  cleanup();
+  cleanup = () => {};
+  arena.innerHTML = "";
+  controls.innerHTML = "";
+}
+
+function showHome() {
+  clearGame();
+  current = "";
+  $("play").hidden = true;
+  $("home").hidden = false;
+}
+
+function start(id) {
+  clearGame();
+  current = id;
+  score = 0;
+  data = {};
+  $("home").hidden = true;
+  $("play").hidden = false;
+
+  const game = games.find(g => g[0] === id);
+  $("game-title").textContent = game[1] + " " + game[2];
+  status("O‘yin boshlanmoqda!");
+  button("🔄 Yangidan boshlash", () => start(id));
+
+  const fn = {
+    clicker: gameClicker,
+    reaction: gameReaction,
+    guess: gameGuess,
+    rps: gameRPS,
+    xo: gameXO,
+    memory: gameMemory,
+    "2048": game2048,
+    whack: gameWhack,
+    snake: gameSnake,
+    dino: gameDino,
+    dodge: gameDodge,
+    pong: gamePong
+  }[id];
+
+  if (fn) fn();
+}
+
+$("back").addEventListener("click", showHome);
+$("restart").addEventListener("click", () => {
+  if (current) start(current);
+});
+
+games.forEach(([id, emoji, name]) => {
+  const b = document.createElement("button");
+  b.className = "game-card";
+  const icon = document.createElement("span");
+  icon.className = "emoji";
+  icon.textContent = emoji;
+  b.append(icon, document.createTextNode(name));
+  b.addEventListener("click", () => start(id));
+  $("game-list").appendChild(b);
+});
+
+// 1. Coin Clicker
+function gameClicker() {
+  let coins = 0;
+  const b = button("🪙 TANGA BOS!", () => {
+    coins++;
+    status("Tangalar: " + coins);
+    b.textContent = "🪙 " + coins + " ta";
+  }, arena);
+  b.style.fontSize = "25px";
+  b.style.padding = "35px 20px";
+  button("+10 bonus", () => {
+    coins += 10;
+    status("Tangalar: " + coins);
+  }, arena);
+  status("Tangalarni imkon qadar ko‘p yig‘!");
+}
+
+// 2. Reaction speed
+function gameReaction() {
+  const b = button("Boshlash", () => {
+    b.disabled = true;
+    b.textContent = "Kut...";
+    status("Yashil rang paydo bo‘lishini kut!");
+
+    const delay = 1000 + Math.random() * 3000;
+    let ready = false;
+    const startTime = performance.now();
+
+    const t = setTimeout(() => {
+      if (current !== "reaction") return;
+      ready = true;
+      b.disabled = false;
+      b.textContent = "HOZIR BOS!";
+      b.style.background = "#16a34a";
+      status("BOS!");
+      data.readyAt = performance.now();
+    }, delay);
+
+    b.onclick = () => {
+      if (!ready) {
+        clearTimeout(t);
+        b.textContent = "Qayta urin!";
+        b.style.background = "";
+        status("Juda erta! Yana urinib ko‘r.");
+        b.onclick = null;
+        return;
+      }
+      const ms = Math.round(performance.now() - data.readyAt);
+      b.disabled = true;
+      b.style.background = "";
+      b.textContent = ms + " ms";
+      status("Reaksiya vaqting: " + ms + " ms");
+    };
+  }, arena);
+  b.style.fontSize = "22px";
+}
+
+// 3. Guess the number
+function gameGuess() {
+  const answer = 1 + Math.floor(Math.random() * 100);
+  const input = element("input", "", arena);
+  input.type = "number";
+  input.min = "1";
+  input.max = "100";
+  input.placeholder = "1 dan 100 gacha";
+  input.setAttribute("aria-label", "Taxminiy son");
+
+  let tries = 0;
+  const result = element("p", "Sonni top!", arena);
+  button("Tekshirish", () => {
+    const n = Number(input.value);
+    if (!Number.isInteger(n) || n < 1 || n > 100) {
+      result.textContent = "1–100 oralig‘ida son kiriting.";
+      return;
+    }
+    tries++;
+    if (n === answer) {
+      result.textContent = "🎉 To‘g‘ri! Urinishlar: " + tries;
+      status("G‘alaba!");
+    } else {
+      result.textContent = n < answer ? "Kattaroq son!" : "Kichikroq son!";
+      status("Urinishlar: " + tries);
+    }
+    input.value = "";
+    input.focus();
+  });
+}
+
+// 4. Rock paper scissors
+function gameRPS() {
+  const choices = ["✊ Tosh", "✋ Qog‘oz", "✌️ Qaychi"];
+  const result = element("p", "Tanlovingni bos!", arena);
+  choices.forEach((choice, i) => {
+    button(choice, () => {
+      const cpu = Math.floor(Math.random() * 3);
+      const outcome = i === cpu ? "Durrang!" :
+        (i - cpu + 3) % 3 === 1 ? "Sen yutding! 🎉" : "Kompyuter yutdi!";
+      result.textContent = "Sen: " + choice +
+        " | Kompyuter: " + choices[cpu] + " — " + outcome;
+      status(outcome);
+    });
+  });
+}
+
+// 5. Tic-tac-toe
+function gameXO() {
+  let board = Array(9).fill("");
+  let turn = "X";
+  let ended = false;
+  const grid = element("div", "", arena, "arena-grid");
+  grid.style.gridTemplateColumns = "repeat(3, 1fr)";
+
+  function draw() {
+    grid.innerHTML = "";
+    board.forEach((v, i) => {
+      const b = element("button", v || "·", grid, "tile");
+      b.addEventListener("click", () => {
+        if (ended || board[i]) return;
+        board[i] = turn;
+        const wins = [
+          [0,1,2],[3,4,5],[6,7,8],
+          [0,3,6],[1,4,7],[2,5,8],
+          [0,4,8],[2,4,6]
+        ];
+        if (wins.some(line => line.every(j => board[j] === turn))) {
+          ended = true;
+          status(turn + " g‘olib! 🎉");
+        } else if (board.every(Boolean)) {
+          ended = true;
+          status("Durrang!");
+        } else {
+          turn = turn === "X" ? "O" : "X";
+          status("Navbat: " + turn);
+        }
+        draw();
+      });
+    });
+  }
+  draw();
+  status("Navbat: X");
+}
+
+// 6. Memory cards
+function gameMemory() {
+  const faces = ["🐱","🐶","🐼","🦊","🐸","🦁"];
+  const cards = [...faces, ...faces].sort(() => Math.random() - .5);
+  let opened = [];
+  let matched = new Set();
+  let locked = false;
+  let moves = 0;
+  const grid = element("div", "", arena, "arena-grid");
+  grid.style.gridTemplateColumns = "repeat(4, 1fr)";
+
+  function draw() {
+    grid.innerHTML = "";
+    cards.forEach((face, i) => {
+      const b = element("button",
+        matched.has(i) || opened.includes(i) ? face : "❔",
+        grid, "tile");
+      b.addEventListener("click", () => {
+        if (locked || matched.has(i) || opened.includes(i)) return;
+        opened.push(i);
+        if (opened.length === 2) {
+          moves++;
+          locked = true;
+          if (cards[opened[0]] === cards[opened[1]]) {
+            opened.forEach(j => matched.add(j));
+            opened = [];
+            locked = false;
+            status("Juftlik topildi! Urinishlar: " + moves);
+            draw();
+            if (matched.size === cards.length) status("🎉 Barcha juftliklar topildi!");
+          } else {
+            status("Urinishlar: " + moves);
+            const pair = [...opened];
+            setTimeout(() => {
+              if (current !== "memory") return;
+              opened = [];
+              locked = false;
+              draw();
+            }, 700);
+          }
+        }
+        draw();
+      });
+    });
+  }
+  draw();
+}
+
+// 7. 2048
+function game2048() {
+  let board = Array(16).fill(0);
+  let ended = false;
+  const grid = element("div", "", arena, "arena-grid board2048");
+  grid.style.gridTemplateColumns = "repeat(4, 1fr)";
+
+  function spawn() {
+    const empty = board.map((v,i) => v ? -1 : i).filter(i => i >= 0);
+    if (empty.length) board[empty[Math.floor(Math.random()*empty.length)]] =
+      Math.random() < .9 ? 2 : 4;
+  }
+  function draw() {
+    grid.innerHTML = "";
+    board.forEach(v => {
+      const b = element("div", v || "", grid, "tile");
+      b.style.display = "grid";
+      b.style.placeItems = "center";
+      b.style.background = v ? `hsl(${35 + Math.min(v,2048)/2048*200} 55% 40%)` : "#303753";
+    });
+    status("Eng katta son: " + Math.max(...board));
+  }
+  function move(dir) {
+    if (ended) return;
+    const old = board.join(",");
+    for (let line = 0; line < 4; line++) {
+      let ids = [];
+      for (let j = 0; j < 4; j++)
+        ids.push(dir === "left" || dir === "right" ? line*4+j : j*4+line);
+      if (dir === "right" || dir === "down") ids.reverse();
+      let vals = ids.map(i => board[i]).filter(Boolean);
+      for (let j = 0; j < vals.length-1; j++) {
+        if (vals[j] === vals[j+1]) {
+          vals[j] *= 2;
+          vals.splice(j+1,1);
+        }
+      }
+      while (vals.length < 4) vals.push(0);
+      ids.forEach((id,j) => board[id] = vals[j]);
+    }
+    if (old !== board.join(",")) {
+      spawn();
+      draw();
+    }
+    if (board.includes(2048)) status("🎉 2048 ga yetding!");
+  }
+  ["⬅","⬆","⬇","➡"].forEach((t,i) =>
+    button(t, () => move(["left","up","down","right"][i])));
+  const key = e => {
+    if (current !== "2048") return;
+    const dir = {ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"}[e.key];
+    if (dir) { e.preventDefault(); move(dir); }
+  };
+  document.addEventListener("keydown", key);
+  cleanup = () => document.removeEventListener("keydown", key);
+  let sx=0, sy=0;
+  grid.addEventListener("touchstart", e => {
+    sx=e.changedTouches[0].clientX; sy=e.changedTouches[0].clientY;
+  }, {passive:true});
+  grid.addEventListener("touchend", e => {
+    const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
+    if (Math.max(Math.abs(dx),Math.abs(dy)) < 20) return;
+    move(Math.abs(dx)>Math.abs(dy) ? (dx>0?"right":"left") : (dy>0?"down":"up"));
+  }, {passive:true});
+  spawn(); spawn(); draw();
+}
+
+// 8. Whack-a-mole
+function gameWhack() {
+  let active = -1, hits = 0, seconds = 20;
+  const grid = element("div", "", arena, "arena-grid");
+  grid.style.gridTemplateColumns = "repeat(3, 1fr)";
+  const cells = [];
+  for (let i=0; i<9; i++) {
+    const b = button("🕳️", () => {
+      if (i === active && seconds > 0) {
+        hits++;
+        active = -1;
+        status("Ball: " + hits + " | Vaqt: " + seconds);
+        draw();
+      }
+    }, grid);
+    b.className = "tile";
+    cells.push(b);
+  }
+  function draw() {
+    cells.forEach((b,i) => b.textContent = i===active ? "🐹" : "🕳️");
+  }
+  const spawnTimer = setInterval(() => {
+    if (current !== "whack" || seconds <= 0) return;
+    active = Math.floor(Math.random()*9);
+    draw();
+  }, 650);
+  const clock = setInterval(() => {
+    if (current !== "whack") return;
+    seconds--;
+    status("Ball: " + hits + " | Vaqt: " + seconds);
+    if (seconds <= 0) {
+      clearInterval(spawnTimer);
+      clearInterval(clock);
+      status("Vaqt tugadi! Yakuniy ball: " + hits);
+    }
+  }, 1000);
+  cleanup = () => { clearInterval(spawnTimer); clearInterval(clock); };
+  draw();
+}
+
+// Canvas helper
+function makeCanvas() {
+  const c = element("canvas", "", arena);
+  c.width = 320;
+  c.height = 400;
+  const x = c.getContext("2d");
+  return {c, x};
+}
+
+// 9. Snake
+function gameSnake() {
+  const {c,x} = makeCanvas();
+  let snake = [{x:7,y:9},{x:6,y:9},{x:5,y:9}];
+  let dir = {x:1,y:0};
+  let food = {x:12,y:9};
+  let ended = false;
+  let points = 0;
+  function turn(d) {
+    if (d.x !== -dir.x || d.y !== -dir.y) dir = d;
+  }
+  const key = e => {
+    if (current !== "snake") return;
+    const d = {
+      ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1},
+      ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0}
+    }[e.key];
+    if (d) { e.preventDefault(); turn(d); }
+  };
+  document.addEventListener("keydown",key);
+  cleanup = () => document.removeEventListener("keydown",key);
+  [["⬆",{x:0,y:-1}],["⬅",{x:-1,y:0}],["⬇",{x:0,y:1}],["➡",{x:1,y:0}]]
+    .forEach(([t,d]) => button(t,() => turn(d)));
+
+  function tick() {
+    if (ended) return;
+    const h = {x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+    if (h.x<0||h.x>=16||h.y<0||h.y>=20||
+        snake.some(p=>p.x===h.x&&p.y===h.y)) {
+      ended = true; status("O‘yin tugadi! Ball: "+points); return;
+    }
+    snake.unshift(h);
+    if (h.x===food.x&&h.y===food.y) {
+      points++;
+      food={x:Math.random()*16|0,y:Math.random()*20|0};
+    } else snake.pop();
+    x.fillStyle="#090d1a";x.fillRect(0,0,320,400);
+    x.fillStyle="#ff5252";x.fillRect(food.x*20,food.y*20,18,18);
+    x.fillStyle="#35d9a0";
+    snake.forEach(p=>x.fillRect(p.x*20,p.y*20,18,18));
+    status("Ball: "+points);
+  }
+  interval(tick,140);
+}
+
+// 10. Dino Jump
+function gameDino() {
+  const {c,x}=makeCanvas();
+  let y=310,vy=0,ob=330,over=false,points=0;
+  function jump() { if (y>=309&&!over) vy=-10; }
+  button("⬆ Sakrash",jump);
+  c.addEventListener("pointerdown",jump);
+  cleanup = () => c.removeEventListener("pointerdown",jump);
+  function tick() {
+    if(over)return;
+    vy+=.48;y+=vy;
+    if(y>310){y=310;vy=0;}
+    ob-=4.5;
+    if(ob < -25) ob=340+Math.random()*120;
+    x.fillStyle="#090d1a";x.fillRect(0,0,320,400);
+    x.fillStyle="#35d9a0";x.fillRect(35,y,24,28);
+    x.fillStyle="#ff8055";x.fillRect(ob,310,22,28);
+    x.fillStyle="#ddd";x.fillRect(0,340,320,2);
+    if(ob<62&&ob>25&&y>285) {
+      over=true;status("O‘yin tugadi! Ball: "+points);return;
+    }
+    points++;
+    status("Ball: "+Math.floor(points/4));
+  }
+  interval(tick,35);
+}
+
+// 11. Dodge meteors
+function gameDodge() {
+  const {c,x}=makeCanvas();
+  let px=150,rocks=[],points=0,over=false;
+  function move(dx) { px=Math.max(0,Math.min(290,px+dx)); }
+  button("⬅",()=>move(-22));
+  button("➡",()=>move(22));
+  c.addEventListener("pointermove",e=>{
+    const r=c.getBoundingClientRect();
+    px=Math.max(0,Math.min(290,(e.clientX-r.left)*320/r.width-15));
+  });
+  function tick() {
+    if(over)return;
+    if(Math.random()<.055)rocks.push({x:Math.random()*300,y:-20});
+    rocks.forEach(r=>r.y+=3.2);
+    if(rocks.some(r=>r.y>335&&r.y<380&&Math.abs(r.x-px)<24)){
+      over=true;status("Uriliding! Ball: "+points);return;
+    }
+    rocks=rocks.filter(r=>r.y<410);
+    x.fillStyle="#090d1a";x.fillRect(0,0,320,400);
+    x.fillStyle="#35d9e8";x.fillRect(px,350,30,24);
+    x.fillStyle="#ff5252";
+    rocks.forEach(r=>{x.beginPath();x.arc(r.x,r.y,10,0,Math.PI*2);x.fill();});
+    points++;
+    status("Ball: "+Math.floor(points/5));
+  }
+  interval(tick,30);
+}
+
+// 12. Mini Pong
+function gamePong() {
+  const {c,x}=makeCanvas();
+  let px=120, bx=160,by=180,vx=3,vy=3,points=0,over=false;
+  function paddle(e) {
+    const r=c.getBoundingClientRect();
+    px=Math.max(0,Math.min(250,(e.clientX-r.left)*320/r.width-35));
+  }
+  c.addEventListener("pointermove",paddle);
+  c.addEventListener("pointerdown",paddle);
+  cleanup=()=>{c.removeEventListener("pointermove",paddle);c.removeEventListener("pointerdown",paddle);};
+  button("⬅",()=>px=Math.max(0,px-20));
+  button("➡",()=>px=Math.min(250,px+20));
+  function tick() {
+    if(over)return;
+    bx+=vx;by+=vy;
+    if(bx<7||bx>313)vx=-vx;
+    if(by<7)vy=-vy;
+    if(vy>0&&by>345&&by<365&&bx>px&&bx<px+70){
+      vy=-Math.abs(vy);points++;
+      vx += (bx-(px+35))*.025;
+      vx=Math.max(-5,Math.min(5,vx));
+    }
+    if(by>400){over=true;status("O‘yin tugadi! Ball: "+points);return;}
+    x.fillStyle="#090d1a";x.fillRect(0,0,320,400);
+    x.fillStyle="#35d9e8";x.fillRect(px,355,70,10);
+    x.fillStyle="#ffca28";x.beginPath();x.arc(bx,by,8,0,Math.PI*2);x.fill();
+    status("Ball: "+points);
+  }
+  interval(tick,25);
+}

@@ -1,0 +1,39 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101326">
+  <title>Mini Games — 12 ta o‘yin</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="logo">🎮 MINI GAMES</div>
+    <p>12 ta o‘yin — bitta saytda!</p>
+  </header>
+
+  <main>
+    <section id="home">
+      <h1>O‘yinni tanla</h1>
+      <p class="muted">Istalgan o‘yinni bosib boshlang.</p>
+      <div id="game-list" class="game-list"></div>
+    </section>
+
+    <section id="play" hidden>
+      <button id="back" class="secondary">← Bosh menyu</button>
+      <h2 id="game-title">O‘yin</h2>
+      <p id="status" aria-live="polite">Boshlashga tayyor!</p>
+
+      <div id="arena" class="arena"></div>
+
+      <div id="controls" class="controls"></div>
+      <button id="restart" class="primary">🔄 Qayta boshlash</button>
+    </section>
+  </main>
+
+  <footer>🎯 MINI GAMES · Mobil qurilmalar uchun</footer>
+</body>
+</html>
